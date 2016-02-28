@@ -1,0 +1,265 @@
+<!-- START SIGMA IMPORTS -->
+<script src="./sigma.min.js"></script>
+<!-- END SIGMA IMPORTS -->
+<script src="./sigma.plugins.animate.min.js"></script>
+<div id="container">
+    <style>
+        #graph-container {
+            background: #fff;
+            height: calc(100%);
+            max-width: calc(100%);
+            margin: auto;
+            position: relative;
+            overflow: hidden;
+        }
+        #backgound {
+            position: absolute;
+            top: 100%;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+    </style>
+    <div id="graph-container">
+        <div id="backgound"></div>
+    </div>
+</div>
+<script>
+    (function() {
+        'use strict';
+
+        var s,
+            c,
+            dom,
+            backgound,
+            nId = 0,
+            eId = 0,
+            spaceMode = false,
+            nodeRadius = 10,
+            mousedown = {},
+            colors = [
+                '#617db4',
+                '#668f3c',
+                '#c6583e',
+                '#b956af'
+            ];
+
+        sigma.classes.graph.addMethod('brownian', function() {
+            var l = this.nodesArray.length,
+                s,
+                prefix = 'm_';
+            for (var i = 0; i < l; i++) {
+                s = this.nodesArray[i];
+                var rx = Math.floor(Math.random() * 3) - 1;
+                var ry = Math.floor(Math.random() * 3) - 1;
+                
+                s.dX = s.x+(rx * Math.floor(Math.random() * 10));
+                s.dY = s.y+(ry * Math.floor(Math.random() * 10));
+            }
+        });
+
+        sigma.canvas.edges.goo = function(edge, source, target, context, settings) {
+            var color = edge.color,
+                prefix = settings('prefix') || '',
+                edgeColor = settings('edgeColor'),
+                defaultNodeColor = settings('defaultNodeColor'),
+                defaultEdgeColor = settings('defaultEdgeColor');
+            if (!color)
+                switch (edgeColor) {
+                    case 'source':
+                        color = source.color || defaultNodeColor;
+                        break;
+                    case 'target':
+                        color = target.color || defaultNodeColor;
+                        break;
+                    default:
+                        color = defaultEdgeColor;
+                        break;
+            }
+            context.strokeStyle = color;
+            context.lineWidth = edge[prefix + 'size'] || 1;
+            context.beginPath();
+            context.moveTo(
+                source[prefix + 'x'],
+                source[prefix + 'y']);
+            context.lineTo(
+                source[prefix + 'x'],
+                target[prefix + 'y']);
+            context.lineTo(
+                target[prefix + 'x'],
+                target[prefix + 'y']);
+            context.stroke();
+        };
+        sigma.canvas.nodes.goo = function(node, ctx, settings) {
+            var prefix = settings('prefix') || '';
+            ctx.fillStyle = node.color;
+            ctx.beginPath();
+            ctx.rect(
+                node[prefix + 'x'] - node[prefix + 'size'] / 2,
+                node[prefix + 'y'] - node[prefix + 'size'] / 2,
+                node[prefix + 'size'], node[prefix + 'size']);
+            ctx.closePath();
+            ctx.fill();
+        };
+
+        s = new sigma({
+                renderer: {
+                    container: document.getElementById('graph-container'),
+                    type: 'canvas'
+                },
+                settings: {
+                    autoRescale: false,
+                    mouseEnabled: true,
+                    touchEnabled: true,
+                    mouseZoomDuration: 200,
+                    zoomMin: 0,
+                    animationsTime: 1000
+                }
+            });
+        dom = document.querySelector('#graph-container canvas:last-child');
+        backgound = document.getElementById('backgound');
+        c = s.camera;
+
+        s.graph.read({
+                nodes: [{
+                        id: (++nId) + '',
+                        size: nodeRadius,
+                        x: 0,
+                        y: -80,
+                        dX: 0,
+                        dY: 0,
+                        type: 'goo',
+                        color: colors[Math.floor(Math.random() * colors.length)]
+                    }, {
+                        id: (++nId) + '',
+                        size: nodeRadius,
+                        x: 10,
+                        y: -100,
+                        dX: 0,
+                        dY: 0,
+                        type: 'goo',
+                        color: colors[Math.floor(Math.random() * colors.length)]
+                    }, {
+                        id: (++nId) + '',
+                        size: nodeRadius,
+                        x: 20,
+                        y: -80,
+                        dX: 0,
+                        dY: 0,
+                        type: 'goo',
+                        color: colors[Math.floor(Math.random() * colors.length)]
+                    }
+                ],
+                edges: [{
+                        id: (++eId) + '',
+                        source: '1',
+                        target: '2',
+                        type: 'goo',
+                        color: colors[Math.floor(Math.random() * colors.length)]
+                    }, {
+                        id: (++eId) + '',
+                        source: '1',
+                        target: '3',
+                        type: 'goo',
+                        color: colors[Math.floor(Math.random() * colors.length)]
+                    }, {
+                        id: (++eId) + '',
+                        source: '2',
+                        target: '3',
+                        type: 'goo',
+                        color: colors[Math.floor(Math.random() * colors.length)]
+                    }
+                ]
+            });
+
+        function frame() {
+
+            s.refresh();
+            var w = dom.offsetWidth,
+                h = dom.offsetHeight;
+            backgound.style.width = w;
+            backgound.style.height = h;
+            backgound.style.top = 0;
+            backgound.style.left = 0;
+            backgound.style.backgroundColor = spaceMode ? '#f99' : '#9cf';
+
+            requestAnimationFrame(frame);
+        }
+
+        frame();
+
+        dom.addEventListener('mouseup', function(e) {
+            var mx = Math.abs(mousedown.x - e.clientX),
+                my = Math.abs(mousedown.y - e.clientY);
+            if (Math.sqrt(Math.pow(mx, 2) + Math.pow(my, 2)) < 7) {
+                var x,
+                    y,
+                    p,
+                    id,
+                    neighbors;
+
+                x = sigma.utils.getX(e) - dom.offsetWidth / 2;
+                y = sigma.utils.getY(e) - dom.offsetHeight / 2;
+
+                p = c.cameraPosition(x, y);
+                x = p.x;
+                y = p.y;
+
+                neighbors = s.graph.nodes().filter(function(n) {
+                    return (Math.sqrt(
+                            Math.pow(n.x - x, 2) +
+                            Math.pow(n.y - y, 2)) - n.size) < 0;
+                });
+                if (!spaceMode)
+                    s.graph.addNode({
+                            id: (id = (++nId) + ''),
+                            size: nodeRadius,
+                            x: x + Math.random() / 10,
+                            y: y + Math.random() / 10,
+                            dX: 0,
+                            dY: 0,
+                            type: 'goo',
+                            color: colors[Math.floor(Math.random() * colors.length)]
+                        });
+                if (!spaceMode) {
+                    s.graph.addEdge({
+                            id: (++eId) + '',
+                            source: s.graph.nodes()[Math.floor(Math.random() * s.graph.nodes().length)].id,
+                            target: id,
+                            type: 'goo',
+                            color: colors[Math.floor(Math.random() * colors.length)]
+                        });
+                } else {
+                    neighbors.forEach(function(n) {
+                        s.graph.dropNode(n.id);
+                    });
+                }
+            }
+
+        }, false);
+        dom.addEventListener('mousedown', function(e) {
+            mousedown.x = e.clientX;
+            mousedown.y = e.clientY;
+        }, false);
+        document.addEventListener('keydown', function(e) {
+            spaceMode = (e.which == 32) ? (spaceMode === true) ? false : true : spaceMode;
+        }, false);
+        c.goTo({
+            ratio:.1,
+            x:10,
+            y:-90
+        });
+        setInterval(function() {
+            s.graph.brownian();
+            sigma.plugins.animate(
+                s, 
+                {
+                    x: 'dX',
+                    y: 'dY',
+                    size: 'size'
+                }
+            );
+            
+        }, 1000)
+    })();
+</script>
